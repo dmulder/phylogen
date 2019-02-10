@@ -1,6 +1,8 @@
 [submodule "ASTRAL"]
 	path = src/ASTRAL
 	url = https://github.com/smirarab/ASTRAL.git
+	branch = master
 [submodule "IQ-TREE"]
 	path = src/IQ-TREE
 	url = https://github.com/Cibiv/IQ-TREE.git
+	branch = master
