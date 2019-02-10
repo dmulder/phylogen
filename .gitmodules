@@ -1,0 +1,6 @@
+[submodule "ASTRAL"]
+	path = ASTRAL
+	url = https://github.com/smirarab/ASTRAL.git
+[submodule "IQ-TREE"]
+	path = IQ-TREE
+	url = https://github.com/Cibiv/IQ-TREE.git
