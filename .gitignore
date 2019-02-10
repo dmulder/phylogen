@@ -102,3 +102,14 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+aclocal.m4
+autom4te.cache/
+config.status
+configure
+Makefile
+Makefile.in
+INSTALL
+install-sh
+missing
+py-compile
