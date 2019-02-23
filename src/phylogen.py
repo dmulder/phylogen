@@ -3,15 +3,26 @@ from subprocess import Popen, PIPE
 import sys, argparse, os
 from shutil import which
 from glob import glob
+from tempfile import NamedTemporaryFile
 
-def generate_trees(fas_dir):
+def generate_tree(iqtree, fas_file, out_file_prefix):
+    p = Popen([iqtree, '-s', fas_file, '-m', 'TEST', '-nt', 'AUTO', '-pre', out_file_prefix, '-b', '250'], stdout=PIPE, stderr=PIPE)
+    return p.wait() == 0
+
+def generate_trees(iqtree, fas_dir):
     fas_files = []
+    tree_prefixes = []
     g = '*.fas'
     globs = [g, g.title(), g.upper()]
     for g in globs:
         fas_files.extend(glob(os.path.join(fas_dir, g)))
     for f in fas_files:
-        print(os.path.basename(f))
+        out_file_prefix = None
+        with NamedTemporaryFile('w', delete=False) as w:
+            out_file_prefix = w.name
+        tree_prefixes.append(out_file_prefix)
+        generate_tree(iqtree, f, out_file_prefix)
+    return tree_prefixes
 
 if __name__ == '__main__':
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -47,5 +58,5 @@ if __name__ == '__main__':
         print('The specified fas dir "%s" is not a directory' % fas_dir)
         exit(4)
 
-    generate_trees(os.path.abspath(fas_dir))
+    generate_trees(iqtree, os.path.abspath(fas_dir))
 
