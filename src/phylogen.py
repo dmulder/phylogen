@@ -4,9 +4,10 @@ import sys, argparse, os
 from shutil import which
 from glob import glob
 from tempfile import NamedTemporaryFile
+import multiprocessing
 
 def generate_tree(iqtree, fas_file, out_file_prefix):
-    p = Popen([iqtree, '-s', fas_file, '-m', 'TEST', '-nt', 'AUTO', '-pre', out_file_prefix, '-b', '250'], stdout=PIPE, stderr=PIPE)
+    p = Popen([iqtree, '-s', fas_file, '-m', 'TEST', '-nt', '%d' % multiprocessing.cpu_count(), '-pre', out_file_prefix, '-b', '250'], stdout=PIPE, stderr=PIPE)
     return p.wait() == 0
 
 def generate_trees(iqtree, fas_dir):
@@ -58,5 +59,7 @@ if __name__ == '__main__':
         print('The specified fas dir "%s" is not a directory' % fas_dir)
         exit(4)
 
-    generate_trees(iqtree, os.path.abspath(fas_dir))
+    tree_prefixes = generate_trees(iqtree, os.path.abspath(fas_dir))
+    for tree_prefix in tree_prefixes:
+        treefile = glob('%s*.treefile' % tree_prefix)[-1]
 
