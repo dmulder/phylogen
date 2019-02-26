@@ -10,7 +10,7 @@ def generate_tree(iqtree, fas_file, out_file_prefix):
     p = Popen([iqtree, '-s', fas_file, '-m', 'TEST', '-nt', '%d' % multiprocessing.cpu_count(), '-pre', out_file_prefix, '-b', '250'], stdout=PIPE, stderr=PIPE)
     return p.wait() == 0
 
-def generate_trees(iqtree, fas_dir):
+def iqtree_trees(iqtree, fas_dir):
     fas_files = []
     tree_prefixes = []
     g = '*.fas'
@@ -25,18 +25,27 @@ def generate_trees(iqtree, fas_dir):
         generate_tree(iqtree, f, out_file_prefix)
     return tree_prefixes
 
+def astral_tree(astral, input_file, output_file):
+    cmd = [astral, '-i', input_file]
+    if output_file:
+        cmd.extend(['-o', output_file])
+    p = Popen(cmd)
+    return p.wait() == 0
+
 if __name__ == '__main__':
     current_dir = os.path.dirname(os.path.abspath(__file__))
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('-s', help='Input directory of alignments in PHYLIP/FASTA/NEXUS/CLUSTAL/MSF format')
     parser.add_argument('--iqtree', help='Path to iqtree executable', default=os.path.join(current_dir, 'iqtree'))
     parser.add_argument('--astral', help='Path to astral jar executable', default=os.path.join(current_dir, 'astral.jar'))
+    parser.add_argument('--output', help='a filename for storing the output species tree. Defaults to outputting to stdout.', default=None)
     parser.add_argument('fasdir', help='Directory containing files in fas format')
 
     args = parser.parse_args()
     iqtree = args.iqtree
     astral = args.astral
     fas_dir = args.fasdir
+    output_file = args.output
 
     if not os.path.exists(iqtree):
         iqtree = which('iqtree')
@@ -59,7 +68,13 @@ if __name__ == '__main__':
         print('The specified fas dir "%s" is not a directory' % fas_dir)
         exit(4)
 
-    tree_prefixes = generate_trees(iqtree, os.path.abspath(fas_dir))
-    for tree_prefix in tree_prefixes:
-        treefile = glob('%s*.treefile' % tree_prefix)[-1]
+    all_trees = None
+    tree_prefixes = iqtree_trees(iqtree, os.path.abspath(fas_dir))
+    with NamedTemporaryFile('w', delete=False) as t:
+        all_trees = t.name
+        for tree_prefix in tree_prefixes:
+            treefile = glob('%s*.treefile' % tree_prefix)[-1]
+            t.write(open(treefile, 'r').read())
+
+    result = astral_tree(astral, all_trees, output_file)
 
