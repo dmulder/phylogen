@@ -6,6 +6,11 @@ from glob import glob
 from tempfile import NamedTemporaryFile
 from multiprocessing.pool import ThreadPool
 from multiprocessing import cpu_count
+from mpi4py import MPI
+
+comm = MPI.COMM_WORLD
+size = comm.Get_size()
+rank = comm.Get_rank()
 
 def generate_tree(iqtree, fas_file, out_file_prefix, threads):
     p = Popen([iqtree, '-s', fas_file, '-m', 'TEST', '-nt', '%d' % threads, '-pre', out_file_prefix, '-b', '250'], stdout=PIPE, stderr=PIPE)
@@ -16,6 +21,20 @@ def iqtree_trees(iqtree, fas_dir, output_dir, cores):
     if not os.path.exists(output_subdir):
         os.mkdir(output_subdir)
 
+    if rank == 0:
+        fas_files = []
+        tree_prefixes = []
+        g = '*.fas'
+        globs = [g, g.title(), g.upper()]
+        for g in globs:
+            fas_files.extend(glob(os.path.join(fas_dir, g)))
+        fas_files_chunks = [list(chunk) for chunk in np.split(np.array(fas_files), 10)]
+    else:
+        tree_prefixes = None
+        fas_files_chunks = None
+
+    fas_files_chunk = comm.scatter(fas_files_chunks, size)
+
     procs = 1
     threads = 1
     if int(cores) > 1:
@@ -24,14 +43,8 @@ def iqtree_trees(iqtree, fas_dir, output_dir, cores):
         # 2 threads allowed for every iqtree process
         threads = 2
 
-    fas_files = []
-    tree_prefixes = []
-    g = '*.fas'
-    globs = [g, g.title(), g.upper()]
-    for g in globs:
-        fas_files.extend(glob(os.path.join(fas_dir, g)))
     tp = ThreadPool(procs)
-    for f in fas_files:
+    for f in fas_files_chunk:
         out_file_prefix = os.path.join(output_subdir, os.path.splitext(os.path.basename(f))[0])
         tree_prefixes.append(out_file_prefix)
         tp.apply_async(generate_tree, (iqtree, f, out_file_prefix, threads))
@@ -87,12 +100,14 @@ if __name__ == '__main__':
 
     all_trees = None
     tree_prefixes = iqtree_trees(iqtree, os.path.abspath(fas_dir), os.path.abspath(output_dir), args.cores)
-    tree_file = os.path.abspath(os.path.join(output_dir, '%s*.treefile' % os.path.basename(fas_dir)))
-    with open(tree_file, 'w') as t:
-        all_trees = t.name
-        for tree_prefix in tree_prefixes:
-            treefile = glob('%s*.treefile' % tree_prefix)[-1]
-            t.write(open(treefile, 'r').read())
+    # Only the main node will process the trees via astral
+    if rank == 0:
+        tree_file = os.path.abspath(os.path.join(output_dir, '%s*.treefile' % os.path.basename(fas_dir)))
+        with open(tree_file, 'w') as t:
+            all_trees = t.name
+            for tree_prefix in tree_prefixes:
+                treefile = glob('%s*.treefile' % tree_prefix)[-1]
+                t.write(open(treefile, 'r').read())
 
-    result = astral_tree(astral, all_trees, output_file)
+        result = astral_tree(astral, all_trees, output_file)
 
