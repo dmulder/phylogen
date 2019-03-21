@@ -7,22 +7,28 @@ from tempfile import NamedTemporaryFile
 import multiprocessing
 
 def generate_tree(iqtree, fas_file, out_file_prefix):
-    p = Popen([iqtree, '-s', fas_file, '-m', 'TEST', '-nt', '%d' % multiprocessing.cpu_count(), '-pre', out_file_prefix, '-b', '250'], stdout=PIPE, stderr=PIPE)
-    return p.wait() == 0
+    print(out_file_prefix)
+    p = Popen([iqtree, '-s', fas_file, '-m', 'TEST', '-nt', 'AUTO', '-pre', out_file_prefix, '-b', '250'], stdout=PIPE, stderr=PIPE)
+    return p
 
-def iqtree_trees(iqtree, fas_dir):
+def iqtree_trees(iqtree, fas_dir, output_dir):
+    output_subdir = os.path.join(output_dir, os.path.basename(fas_dir))
+    if not os.path.exists(output_subdir):
+        os.mkdir(output_subdir)
+
     fas_files = []
     tree_prefixes = []
     g = '*.fas'
     globs = [g, g.title(), g.upper()]
     for g in globs:
         fas_files.extend(glob(os.path.join(fas_dir, g)))
+    procs = []
     for f in fas_files:
-        out_file_prefix = None
-        with NamedTemporaryFile('w', delete=False) as w:
-            out_file_prefix = w.name
+        out_file_prefix = os.path.join(output_subdir, os.path.splitext(os.path.basename(f))[0])
         tree_prefixes.append(out_file_prefix)
-        generate_tree(iqtree, f, out_file_prefix)
+        procs.append(generate_tree(iqtree, f, out_file_prefix))
+    for p in procs:
+        p.wait()
     return tree_prefixes
 
 def astral_tree(astral, input_file, output_file):
@@ -38,6 +44,7 @@ if __name__ == '__main__':
     parser.add_argument('-s', help='Input directory of alignments in PHYLIP/FASTA/NEXUS/CLUSTAL/MSF format')
     parser.add_argument('--iqtree', help='Path to iqtree executable', default=os.path.join(current_dir, 'iqtree'))
     parser.add_argument('--astral', help='Path to astral jar executable', default=os.path.join(current_dir, 'astral.jar'))
+    parser.add_argument('--outdir', help='A path to store the iqtree outputs'. default=current_dir)
     parser.add_argument('--output', help='a filename for storing the output species tree. Defaults to outputting to stdout.', default=None)
     parser.add_argument('fasdir', help='Directory containing files in fas format')
 
@@ -46,6 +53,7 @@ if __name__ == '__main__':
     astral = args.astral
     fas_dir = args.fasdir
     output_file = args.output
+    output_dir = args.outdir
 
     if not os.path.exists(iqtree):
         iqtree = which('iqtree')
@@ -69,12 +77,13 @@ if __name__ == '__main__':
         exit(4)
 
     all_trees = None
-    tree_prefixes = iqtree_trees(iqtree, os.path.abspath(fas_dir))
+    tree_prefixes = iqtree_trees(iqtree, os.path.abspath(fas_dir), output_dir)
     with NamedTemporaryFile('w', delete=False) as t:
         all_trees = t.name
         for tree_prefix in tree_prefixes:
             treefile = glob('%s*.treefile' % tree_prefix)[-1]
             t.write(open(treefile, 'r').read())
+            print(glob('%s*' % tree_prefix))
 
     result = astral_tree(astral, all_trees, output_file)
 
