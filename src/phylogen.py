@@ -18,9 +18,9 @@ def iqtree_trees(iqtree, fas_dir, output_dir, cores):
 
     procs = 1
     threads = 1
-    if cores > 1:
+    if int(cores) > 1:
         # 1 Process for every 2 cores allocated
-        procs = int(cores/2)
+        procs = int(int(cores)/2)
         # 2 threads allowed for every iqtree process
         threads = 2
 
@@ -75,8 +75,8 @@ if __name__ == '__main__':
         print('Path to astral not found.\nEither add astral to your path, or specify it\'s location via the --astral parameter.')
         exit(2)
 
-    Popen(['iqtree -version | grep "version"'], shell=True).wait()
-    Popen(['%s -jar %s 2>&1 | grep "version"' % (which('java'), args.astral)], shell=True).wait()
+    Popen(['%s -version | grep "version"' % iqtree], shell=True).wait()
+    Popen(['%s -jar %s 2>&1 | grep "version"' % (which('java'), astral)], shell=True).wait()
 
     if not os.path.exists(fas_dir):
         print('The specified fas dir "%s" does not exist' % fas_dir)
