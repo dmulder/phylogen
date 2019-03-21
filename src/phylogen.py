@@ -4,7 +4,8 @@ import sys, argparse, os
 from shutil import which
 from glob import glob
 from tempfile import NamedTemporaryFile
-from multiprocessing.pool import ThreadPool, cpu_count
+from multiprocessing.pool import ThreadPool
+from multiprocessing import cpu_count
 
 def generate_tree(iqtree, fas_file, out_file_prefix, threads):
     p = Popen([iqtree, '-s', fas_file, '-m', 'TEST', '-nt', '%d' % threads, '-pre', out_file_prefix, '-b', '250'], stdout=PIPE, stderr=PIPE)
@@ -52,7 +53,7 @@ if __name__ == '__main__':
     parser.add_argument('--iqtree', help='Path to iqtree executable', default=os.path.join(current_dir, 'iqtree'))
     parser.add_argument('--astral', help='Path to astral jar executable', default=os.path.join(current_dir, 'astral.jar'))
     parser.add_argument('--cores', help='The number of cores to utilize', default=cpu_count())
-    parser.add_argument('--outdir', help='A path to store the iqtree outputs'. default=current_dir)
+    parser.add_argument('--outdir', help='A path to store the iqtree outputs', default=current_dir)
     parser.add_argument('--output', help='a filename for storing the output species tree. Defaults to outputting to stdout.', default=None)
     parser.add_argument('fasdir', help='Directory containing files in fas format')
 
@@ -87,7 +88,7 @@ if __name__ == '__main__':
     all_trees = None
     tree_prefixes = iqtree_trees(iqtree, os.path.abspath(fas_dir), os.path.abspath(output_dir), args.cores)
     tree_file = os.path.abspath(os.path.join(output_dir, '%s*.treefile' % os.path.basename(fas_dir)))
-    with open(tree_file, 'w') as t
+    with open(tree_file, 'w') as t:
         all_trees = t.name
         for tree_prefix in tree_prefixes:
             treefile = glob('%s*.treefile' % tree_prefix)[-1]
