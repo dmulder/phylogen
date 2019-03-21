@@ -39,7 +39,7 @@ def iqtree_trees(iqtree, fas_dir, output_dir, cores):
     return tree_prefixes
 
 def astral_tree(astral, input_file, output_file):
-    cmd = [astral, '-i', input_file]
+    cmd = [which('java'), '-jar', astral, '-i', input_file]
     if output_file:
         cmd.extend(['-o', output_file])
     p = Popen(cmd)
@@ -85,13 +85,13 @@ if __name__ == '__main__':
         exit(4)
 
     all_trees = None
-    tree_prefixes = iqtree_trees(iqtree, os.path.abspath(fas_dir), output_dir, args.cores)
-    with NamedTemporaryFile('w', delete=False) as t:
+    tree_prefixes = iqtree_trees(iqtree, os.path.abspath(fas_dir), os.path.abspath(output_dir), args.cores)
+    tree_file = os.path.abspath(os.path.join(output_dir, '%s*.treefile' % os.path.basename(fas_dir)))
+    with open(tree_file, 'w') as t
         all_trees = t.name
         for tree_prefix in tree_prefixes:
             treefile = glob('%s*.treefile' % tree_prefix)[-1]
             t.write(open(treefile, 'r').read())
-            print(glob('%s*' % tree_prefix))
 
     result = astral_tree(astral, all_trees, output_file)
 
