@@ -24,11 +24,11 @@ def iqtree_trees(iqtree, fas_dir, output_dir, cores):
 
     if rank == 0:
         fas_files = []
-        tree_prefixes = []
         g = '*.fas'
         globs = [g, g.title(), g.upper()]
         for g in globs:
             fas_files.extend(glob(os.path.join(fas_dir, g)))
+        tree_prefixes = [os.path.join(output_subdir, os.path.splitext(os.path.basename(f))[0]) for f in fas_files]
         fas_files_chunks = [list(chunk) for chunk in np.split(np.array(fas_files), size)]
     else:
         tree_prefixes = None
@@ -49,8 +49,11 @@ def iqtree_trees(iqtree, fas_dir, output_dir, cores):
 
     tp = ThreadPool(procs)
     for f in fas_files_chunk:
-        out_file_prefix = os.path.join(output_subdir, os.path.splitext(os.path.basename(f))[0])
-        tree_prefixes.append(out_file_prefix)
+        prefix = os.path.splitext(os.path.basename(f))[0]
+        out_file_dir = os.path.join(output_subdir, prefix)
+        if not os.path.exists(out_file_dir):
+            os.mkdir(out_file_dir)
+        out_file_prefix = os.path.join(out_file_dir, prefix)
         tp.apply_async(generate_tree, (iqtree, f, out_file_prefix, threads))
     tp.close()
     tp.join()
@@ -71,7 +74,7 @@ if __name__ == '__main__':
     parser.add_argument('--astral', help='Path to astral jar executable', default=os.path.join(current_dir, 'astral.jar'))
     parser.add_argument('--cores', help='The number of cores to utilize', default=cpu_count())
     parser.add_argument('--outdir', help='A path to store the iqtree outputs', default=current_dir)
-    parser.add_argument('--output', help='a filename for storing the output species tree. Defaults to outputting to stdout.', default=None)
+    parser.add_argument('--output', help='a filename for storing the output species tree.', default=os.path.join(current_dir, 'astral.treefile'))
     parser.add_argument('fasdir', help='Directory containing files in fas format')
 
     args = parser.parse_args()
@@ -106,12 +109,10 @@ if __name__ == '__main__':
     tree_prefixes = iqtree_trees(iqtree, os.path.abspath(fas_dir), os.path.abspath(output_dir), args.cores)
     # Only the main node will process the trees via astral
     if rank == 0:
-        tree_file = os.path.abspath(os.path.join(output_dir, '%s.treefile' % os.path.basename(os.path.abspath(fas_dir))))
-        with open(tree_file, 'w') as t:
-            all_trees = t.name
+        with NamedTemporaryFile('w', dir=output_dir) as t:
             for tree_prefix in tree_prefixes:
                 treefile = glob('%s*.treefile' % tree_prefix)[-1]
                 t.write(open(treefile, 'r').read())
 
-        result = astral_tree(astral, all_trees, output_file)
+            astral_tree(astral, t.name, output_file)
 
