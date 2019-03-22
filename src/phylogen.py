@@ -7,6 +7,7 @@ from tempfile import NamedTemporaryFile
 from multiprocessing.pool import ThreadPool
 from multiprocessing import cpu_count
 from mpi4py import MPI
+import numpy as np
 
 comm = MPI.COMM_WORLD
 size = comm.Get_size()
@@ -28,12 +29,15 @@ def iqtree_trees(iqtree, fas_dir, output_dir, cores):
         globs = [g, g.title(), g.upper()]
         for g in globs:
             fas_files.extend(glob(os.path.join(fas_dir, g)))
-        fas_files_chunks = [list(chunk) for chunk in np.split(np.array(fas_files), 10)]
+        fas_files_chunks = [list(chunk) for chunk in np.split(np.array(fas_files), size)]
     else:
         tree_prefixes = None
         fas_files_chunks = None
 
-    fas_files_chunk = comm.scatter(fas_files_chunks, size)
+    if size == 1 and rank == 0: # Running on a single node does not require MPI
+        fas_files_chunk = fas_files_chunks[0]
+    else:
+        fas_files_chunk = comm.scatter(fas_files_chunks, size)
 
     procs = 1
     threads = 1
