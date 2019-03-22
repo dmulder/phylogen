@@ -102,7 +102,7 @@ if __name__ == '__main__':
     tree_prefixes = iqtree_trees(iqtree, os.path.abspath(fas_dir), os.path.abspath(output_dir), args.cores)
     # Only the main node will process the trees via astral
     if rank == 0:
-        tree_file = os.path.abspath(os.path.join(output_dir, '%s*.treefile' % os.path.basename(fas_dir)))
+        tree_file = os.path.abspath(os.path.join(output_dir, '%s.treefile' % os.path.basename(os.path.abspath(fas_dir))))
         with open(tree_file, 'w') as t:
             all_trees = t.name
             for tree_prefix in tree_prefixes:
