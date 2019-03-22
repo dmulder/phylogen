@@ -105,7 +105,7 @@ if __name__ == '__main__':
         print('The specified fas dir "%s" is not a directory' % fas_dir)
         exit(4)
 
-    all_trees = None
+    print('Processing trees on %d nodes with %d cores' % (size, args.cores))
     tree_prefixes = iqtree_trees(iqtree, os.path.abspath(fas_dir), os.path.abspath(output_dir), args.cores)
     # Only the main node will process the trees via astral
     if rank == 0:
