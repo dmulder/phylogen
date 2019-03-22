@@ -111,7 +111,7 @@ if __name__ == '__main__':
     if rank == 0:
         with NamedTemporaryFile('w', dir=output_dir) as t:
             for tree_prefix in tree_prefixes:
-                treefile = glob('%s*.treefile' % tree_prefix)[-1]
+                treefile = glob(os.path.join(tree_prefix, '*.treefile'))[-1]
                 t.write(open(treefile, 'r').read())
 
             astral_tree(astral, t.name, output_file)
