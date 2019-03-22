@@ -14,7 +14,7 @@ size = comm.Get_size()
 rank = comm.Get_rank()
 
 def generate_tree(iqtree, fas_file, out_file_prefix, threads):
-    p = Popen([iqtree, '-s', fas_file, '-m', 'TEST', '-nt', '%d' % threads, '-pre', out_file_prefix, '-b', '250'], stdout=PIPE, stderr=PIPE)
+    p = Popen([iqtree, '-quiet', '-s', fas_file, '-m', 'TEST', '-nt', '%d' % threads, '-pre', out_file_prefix, '-b', '250'])
     return p.wait() == 0
 
 def iqtree_trees(iqtree, fas_dir, output_dir, cores):
