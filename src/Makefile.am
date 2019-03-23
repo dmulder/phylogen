@@ -1,6 +1,9 @@
 python_PYTHON = phylogen.py
 
-all: astral.jar iqtree
+git_checkout:
+	cd $(top_srcdir) && git submodule init && git submodule update && cd $(srcdir)
+
+all: git_checkout astral.jar iqtree
 
 astral.jar:
 	pushd $(srcdir)/ASTRAL; ./make.sh; popd
