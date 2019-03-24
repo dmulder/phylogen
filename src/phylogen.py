@@ -41,7 +41,10 @@ def iqtree_trees(iqtree, fas_dir, output_dir, cores):
 
     procs = 1
     threads = 1
-    if int(cores) > 1:
+    if int(cores) > 3:
+        procs = int(int(cores)/4)
+        threads = 4
+    elif int(cores) > 1:
         # 1 Process for every 2 cores allocated
         procs = int(int(cores)/2)
         # 2 threads allowed for every iqtree process
