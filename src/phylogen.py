@@ -37,7 +37,7 @@ def iqtree_trees(iqtree, fas_dir, output_dir, cores):
     if size == 1 and rank == 0: # Running on a single node does not require MPI
         fas_files_chunk = fas_files_chunks[0]
     else:
-        fas_files_chunk = comm.scatter(fas_files_chunks, size)
+        fas_files_chunk = comm.scatter(fas_files_chunks, root=0)
 
     procs = 1
     threads = 1
