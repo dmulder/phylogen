@@ -48,7 +48,12 @@ def iqtree_trees(iqtree, fas_dir, output_dir, cores, cores_per_instance):
     threads = int(cores_per_instance)
 
     ps = []
-    for f in fas_files_chunk:
+    while len(fas_files_chunk) > 0:
+        while len(ps) == procs:
+            for p in ps:
+                if p.poll() is not None:
+                    ps.remove(p)
+        f = fas_files_chunk.pop()
         prefix = os.path.splitext(os.path.basename(f))[0]
         out_file_dir = os.path.join(output_subdir, prefix)
         if not os.path.exists(out_file_dir):
