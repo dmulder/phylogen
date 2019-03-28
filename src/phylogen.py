@@ -4,20 +4,25 @@ import sys, argparse, os
 from shutil import which
 from glob import glob
 from tempfile import NamedTemporaryFile
-from multiprocessing.pool import ThreadPool
 from multiprocessing import cpu_count
-from mpi4py import MPI
 import numpy as np
 
-comm = MPI.COMM_WORLD
-size = comm.Get_size()
-rank = comm.Get_rank()
+size = 1
+rank = 0
+try:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+except ImportError:
+    pass
 
 def generate_tree(iqtree, fas_file, out_file_prefix, threads):
-    p = Popen([iqtree, '-quiet', '-s', fas_file, '-m', 'TEST', '-nt', '%d' % threads, '-pre', out_file_prefix, '-b', '250'])
-    return p.wait() == 0
+    print('Processing %s has begun' % fas_file)
+    p = Popen([iqtree, '-quiet', '-s', fas_file, '-m', 'TEST', '-nt', 'AUTO', '-ntmax', '%d' % threads, '-pre', out_file_prefix, '-b', '250'])
+    return p
 
-def iqtree_trees(iqtree, fas_dir, output_dir, cores):
+def iqtree_trees(iqtree, fas_dir, output_dir, cores, cores_per_instance):
     output_subdir = os.path.join(output_dir, os.path.basename(fas_dir))
     if not os.path.exists(output_subdir):
         os.mkdir(output_subdir)
@@ -39,27 +44,19 @@ def iqtree_trees(iqtree, fas_dir, output_dir, cores):
     else:
         fas_files_chunk = comm.scatter(fas_files_chunks, root=0)
 
-    procs = 1
-    threads = 1
-    if int(cores) > 3:
-        procs = int(int(cores)/4)
-        threads = 4
-    elif int(cores) > 1:
-        # 1 Process for every 2 cores allocated
-        procs = int(int(cores)/2)
-        # 2 threads allowed for every iqtree process
-        threads = 2
+    procs = int(int(cores)/int(cores_per_instance))
+    threads = int(cores_per_instance)
 
-    tp = ThreadPool(procs)
+    ps = []
     for f in fas_files_chunk:
         prefix = os.path.splitext(os.path.basename(f))[0]
         out_file_dir = os.path.join(output_subdir, prefix)
         if not os.path.exists(out_file_dir):
             os.mkdir(out_file_dir)
         out_file_prefix = os.path.join(out_file_dir, prefix)
-        tp.apply_async(generate_tree, (iqtree, f, out_file_prefix, threads))
-    tp.close()
-    tp.join()
+        ps.append(generate_tree(iqtree, f, out_file_prefix, threads))
+    for p in ps:
+        p.wait()
     return tree_prefixes
 
 def astral_tree(astral, input_file, output_file):
@@ -76,6 +73,7 @@ if __name__ == '__main__':
     parser.add_argument('--iqtree', help='Path to iqtree executable', default=os.path.join(current_dir, 'iqtree'))
     parser.add_argument('--astral', help='Path to astral jar executable', default=os.path.join(current_dir, 'astral.jar'))
     parser.add_argument('--cores', help='The number of cores to utilize', default=cpu_count())
+    parser.add_argument('--cores-per-instance', help='The number of cores to utilize per iqtree instance', default=1)
     parser.add_argument('--outdir', help='A path to store the iqtree outputs', default=current_dir)
     parser.add_argument('--output', help='a filename for storing the output species tree.', default=os.path.join(current_dir, 'astral.treefile'))
     parser.add_argument('fasdir', help='Directory containing files in fas format')
@@ -109,12 +107,16 @@ if __name__ == '__main__':
         exit(4)
 
     print('Processing trees on %d nodes with %s cores' % (size, args.cores))
-    tree_prefixes = iqtree_trees(iqtree, os.path.abspath(fas_dir), os.path.abspath(output_dir), args.cores)
+    tree_prefixes = iqtree_trees(iqtree, os.path.abspath(fas_dir), os.path.abspath(output_dir), args.cores, args.cores_per_instance)
     # Only the main node will process the trees via astral
     if rank == 0:
         with NamedTemporaryFile('w', dir=output_dir) as t:
             for tree_prefix in tree_prefixes:
-                treefile = glob(os.path.join(tree_prefix, '*.treefile'))[-1]
+                try:
+                    treefile = glob(os.path.join(tree_prefix, '*.treefile'))[-1]
+                except IndexError:
+                    print('Tree file missing for %s' % tree_prefix)
+                    continue
                 t.write(open(treefile, 'r').read())
 
             astral_tree(astral, t.name, output_file)
