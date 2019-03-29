@@ -19,7 +19,7 @@ except ImportError:
 
 def generate_tree(iqtree, fas_file, out_file_prefix, threads):
     print('Processing %s has begun' % fas_file)
-    p = Popen([iqtree, '-quiet', '-s', fas_file, '-m', 'TEST', '-nt', 'AUTO', '-ntmax', '%d' % threads, '-pre', out_file_prefix, '-b', '250'])
+    p = Popen([iqtree, '-quiet', '-s', fas_file, '-m', 'TEST', '-nt', 'AUTO', '-ntmax', '%d' % threads, '-pre', out_file_prefix, '-bb', '1000'])
     return p
 
 def iqtree_trees(iqtree, fas_dir, output_dir, cores, cores_per_instance):
