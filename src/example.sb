@@ -1,0 +1,25 @@
+#!/bin/bash
+#SBATCH -t 24:00:00
+#SBATCH -N 2
+#SBATCH --ntasks-per-node 28
+
+# Setup Environment. Due to Popen forking, you MUST use Intel MPI, not openMPI
+module load python3/intel_3.6.3
+
+#echo commands to stdout
+set -x
+
+# Specify the location of your project
+PRJ_DIR=
+cd $PRJ_DIR
+
+# Specify location of target data
+TARGET=
+
+#set variable so that task placement works as expected
+export  I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0
+
+# Parse the names of our slurm nodes
+NODES=`python -c "import re; r = []; [r.extend(k) if type(k) == list else r.append(k) for k in [list(range(*tuple([int(j)+1 if j==i.split('-')[-1] else int(j) for j in i.split('-')]))) if len(i.split('-')) == 2 else int(i) for i in re.findall('(?:([\d\-]+)(?:,)*)', re.match('r\[(.*)\]', '$SLURM_JOB_NODELIST').group(1))]]; print(','.join(['r%03d' % k for k in r]))"`
+
+time mpirun -hosts $NODES -perhost 1 python3 test.py --iqtree=${PRJ_DIR}/iqtree --astral=${PRJ_DIR}/astral.jar --cores=$SLURM_NTASKS_PER_NODE ${TARGET}
