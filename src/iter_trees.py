@@ -92,11 +92,11 @@ if __name__ == '__main__':
         while len(ps) == procs:
             for p, output_file in ps:
                 if validate(p, output_file):
-                    ps.remove(p)
+                    ps.remove((p, output_file))
         output_file = 'tmp_%dto%d.treefile' % (i, len(tree_files))
         try:
             os.remove(output_file)
-        except:
+        except FileNotFoundError:
             pass
         with NamedTemporaryFile('w', dir=output_dir, delete=False) as t:
             for treefile in tree_files[i:]:
@@ -109,7 +109,10 @@ if __name__ == '__main__':
     while len(ps) > 0:
         for p, output_file in ps:
             if validate(p, output_file):
-                ps.remove(p)
+                ps.remove((p, output_file))
     for cleanup_file in cleanup_files:
-        os.remove(cleanup_file)
+        try:
+            os.remove(cleanup_file)
+        except FileNotFoundError:
+            pass
     print('Best rank was %f with output in %s' % (best_rank, str(best_output)))
