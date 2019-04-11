@@ -9,6 +9,8 @@ import re
 from multiprocessing import cpu_count
 # minimum python version 3.5
 
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
 def astral_tree(astral, input_file, output_file):
     cmd = [which('java'), '-jar', astral, '-i', input_file]
     if output_file:
@@ -45,6 +47,7 @@ def exon_length(treefile, fas_dir):
 best_rank = 0
 best_output = ''
 def validate(p, output_file):
+    global best_rank, best_output
     if p.poll() is not None:
         rank = rank_treefile(output_file)
         if rank > best_rank:
@@ -64,6 +67,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('fas_dir', help='Location of fas files used for generating treefiles')
     parser.add_argument('tree_dir', help='Location of tree files generated using fas files in <fas_dir>')
+    parser.add_argument('--cores', help='The number of cores to utilize', default=cpu_count())
+    parser.add_argument('--astral', help='Path to astral jar executable', default=os.path.join(current_dir, 'astral.jar'))
 
     args = parser.parse_args()
 
@@ -79,8 +84,8 @@ if __name__ == '__main__':
     tree_files = glob(os.path.join(args.tree_dir, '**', '*.treefile'), recursive=True)
     tree_files.sort(key=lambda k : exon_length(k, args.fas_dir))
 
-    output_dir = './'
-    procs = cpu_count()-1
+    output_dir = current_dir
+    procs = int(args.cores)-1
     ps = []
     cleanup_files = []
     for i in range(len(tree_files)):
@@ -98,7 +103,7 @@ if __name__ == '__main__':
                 t.write(open(treefile, 'r').read())
 
             print('Calling astral on trees indexed from %d to %d' % (i, len(tree_files)))
-            p = astral_tree('./astral.jar', t.name, output_file)
+            p = astral_tree(args.astral, t.name, output_file)
             ps.append((p, output_file))
             cleanup_files.append(output_file)
     while len(ps) > 0:
