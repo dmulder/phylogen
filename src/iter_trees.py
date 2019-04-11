@@ -6,6 +6,7 @@ from tempfile import NamedTemporaryFile
 from shutil import which
 from subprocess import Popen, PIPE
 import re
+from multiprocessing import cpu_count
 # minimum python version 3.5
 
 def astral_tree(astral, input_file, output_file):
@@ -13,7 +14,7 @@ def astral_tree(astral, input_file, output_file):
     if output_file:
         cmd.extend(['-o', output_file])
     p = Popen(cmd, stderr=PIPE, stdout=PIPE)
-    return p.wait() == 0
+    return p
 
 def rank_treefile(filename):
     data = open(filename, 'r').read().strip()
@@ -41,6 +42,23 @@ def exon_length(treefile, fas_dir):
         axon = f.readline().strip()
     return len(axon)
 
+best_rank = 0
+best_output = ''
+def validate(p, output_file):
+    if p.poll() is not None:
+        rank = rank_treefile(output_file)
+        if rank > best_rank:
+            print('Found a better rank of %f in %s' % (rank, output_file))
+            best_rank = rank
+            best_output = [output_file]
+        elif rank == best_rank:
+            print('Found the same rank of %f in %s' % (rank, output_file))
+            best_output.append(best_output)
+        else:
+            print('Found a worse rank of %f in %s' % (rank, output_file))
+        return True
+    return False
+
 if __name__ == '__main__':
     current_dir = os.path.dirname(os.path.abspath(__file__))
     parser = argparse.ArgumentParser(description='')
@@ -61,23 +79,32 @@ if __name__ == '__main__':
     tree_files = glob(os.path.join(args.tree_dir, '**', '*.treefile'), recursive=True)
     tree_files.sort(key=lambda k : exon_length(k, args.fas_dir))
 
-    best_rank = 0
     output_dir = './'
-    output_file = 'tmp.treefile'
+    procs = cpu_count()-1
+    ps = []
+    cleanup_files = []
     for i in range(len(tree_files)):
+        while len(ps) == procs:
+            for p, output_file in ps:
+                if validate(p, output_file):
+                    ps.remove(p)
+        output_file = 'tmp_%dto%d.treefile' % (i, len(tree_files))
         try:
             os.remove(output_file)
         except:
             pass
-        with NamedTemporaryFile('w', dir=output_dir) as t:
+        with NamedTemporaryFile('w', dir=output_dir, delete=False) as t:
             for treefile in tree_files[i:]:
                 t.write(open(treefile, 'r').read())
 
-            astral_tree('./astral.jar', t.name, output_file)
-            rank = rank_treefile(output_file)
-            if rank > best_rank:
-                print('Found a better tree using exons from %d to %d' % (i, len(tree_files)))
-                best_rank = rank
-            else:
-                print('Range %d to %d did not improve tree rank' % (i, len(tree_files)))
-    print('Best rank was %f' % best_rank)
+            print('Calling astral on trees indexed from %d to %d' % (i, len(tree_files)))
+            p = astral_tree('./astral.jar', t.name, output_file)
+            ps.append((p, output_file))
+            cleanup_files.append(output_file)
+    while len(ps) > 0:
+        for p, output_file in ps:
+            if validate(p, output_file):
+                ps.remove(p)
+    for cleanup_file in cleanup_files:
+        os.remove(cleanup_file)
+    print('Best rank was %f with output in %s' % (best_rank, str(best_output)))
