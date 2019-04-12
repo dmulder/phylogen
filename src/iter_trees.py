@@ -93,7 +93,7 @@ if __name__ == '__main__':
             for p, output_file in ps:
                 if validate(p, output_file):
                     ps.remove((p, output_file))
-        output_file = 'tmp_%dto%d.treefile' % (i, len(tree_files))
+        output_file = os.path.join(current_dir, 'tmp_%dto%d.treefile' % (i, len(tree_files)))
         try:
             os.remove(output_file)
         except FileNotFoundError:
