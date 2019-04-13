@@ -69,6 +69,7 @@ if __name__ == '__main__':
     parser.add_argument('tree_dir', help='Location of tree files generated using fas files in <fas_dir>')
     parser.add_argument('--cores', help='The number of cores to utilize', default=cpu_count())
     parser.add_argument('--astral', help='Path to astral jar executable', default=os.path.join(current_dir, 'astral.jar'))
+    parser.add_argument('--start', help='Index to start from (if restarting job)', default=0)
 
     args = parser.parse_args()
 
@@ -87,7 +88,7 @@ if __name__ == '__main__':
     output_dir = current_dir
     procs = int(args.cores)-1
     ps = []
-    for i in range(len(tree_files)):
+    for i in range(int(args.start), len(tree_files)):
         while len(ps) == procs:
             for p, start, end, tmp_file in ps:
                 if validate(p, start, end):
