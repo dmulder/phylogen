@@ -18,7 +18,7 @@ def astral_tree(astral, input_file):
     return p
 
 def rank_treefile(data):
-    supports = [float(d) for d in re.findall(r'(\d+\.*\d*):\d+\.*\d*', data)]
+    supports = [float(d) for d in re.findall(r'(\d+\.*\d*):\d+\.*\d*', data.decode())]
     return sum(supports)/len(supports)
 
 def find_matching_fas_file(treefile, fas_dir):
