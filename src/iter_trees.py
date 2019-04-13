@@ -11,15 +11,13 @@ from multiprocessing import cpu_count
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
-def astral_tree(astral, input_file, output_file):
+def astral_tree(astral, input_file):
     cmd = [which('java'), '-jar', astral, '-i', input_file]
-    if output_file:
-        cmd.extend(['-o', output_file])
-    p = Popen(cmd, stderr=PIPE, stdout=PIPE)
+    devnull = open(os.devnull, 'w')
+    p = Popen(cmd, stderr=devnull, stdout=PIPE)
     return p
 
-def rank_treefile(filename):
-    data = open(filename, 'r').read().strip()
+def rank_treefile(data):
     supports = [float(d) for d in re.findall(r'(\d+\.*\d*):\d+\.*\d*', data)]
     return sum(supports)/len(supports)
 
@@ -46,19 +44,21 @@ def exon_length(treefile, fas_dir):
 
 best_rank = 0
 best_output = ''
-def validate(p, output_file):
+def validate(p, start, end):
     global best_rank, best_output
     if p.poll() is not None:
-        rank = rank_treefile(output_file)
+        tree = p.communicate()[0].strip()
+        rank = rank_treefile(tree)
         if rank > best_rank:
-            print('Found a better rank of %f in %s' % (rank, output_file))
+            print('Found a better rank of %f in range %d - %d' % (rank, start, end))
+            print('Best tree found so far:\n%s' % tree)
             best_rank = rank
-            best_output = [output_file]
+            best_output = [tree]
         elif rank == best_rank:
-            print('Found the same rank of %f in %s' % (rank, output_file))
-            best_output.append(best_output)
+            print('Found the same rank of %f in range %d - %d' % (rank, start, end))
+            best_output.append(tree)
         else:
-            print('Found a worse rank of %f in %s' % (rank, output_file))
+            print('Found a worse rank of %f in range %d - %d' % (rank, start, end))
         return True
     return False
 
@@ -87,32 +87,22 @@ if __name__ == '__main__':
     output_dir = current_dir
     procs = int(args.cores)-1
     ps = []
-    cleanup_files = []
     for i in range(len(tree_files)):
         while len(ps) == procs:
-            for p, output_file in ps:
-                if validate(p, output_file):
-                    ps.remove((p, output_file))
-        output_file = os.path.join(current_dir, 'tmp_%dto%d.treefile' % (i, len(tree_files)))
-        try:
-            os.remove(output_file)
-        except FileNotFoundError:
-            pass
+            for p, start, end, tmp_file in ps:
+                if validate(p, start, end):
+                    os.remove(tmp_file)
+                    ps.remove((p, start, end, tmp_file))
         with NamedTemporaryFile('w', dir=output_dir, delete=False) as t:
             for treefile in tree_files[i:]:
                 t.write(open(treefile, 'r').read())
 
             print('Calling astral on trees indexed from %d to %d' % (i, len(tree_files)))
-            p = astral_tree(args.astral, t.name, output_file)
-            ps.append((p, output_file))
-            cleanup_files.append(output_file)
+            p = astral_tree(args.astral, t.name)
+            ps.append((p, i, len(tree_files), t.name))
     while len(ps) > 0:
-        for p, output_file in ps:
-            if validate(p, output_file):
-                ps.remove((p, output_file))
-    for cleanup_file in cleanup_files:
-        try:
-            os.remove(cleanup_file)
-        except FileNotFoundError:
-            pass
+        for p, start, end, tmp_file in ps:
+            if validate(p, start, end):
+                os.remove(tmp_file)
+                ps.remove((p, start, end, tmp_file))
     print('Best rank was %f with output in %s' % (best_rank, str(best_output)))
