@@ -36,11 +36,11 @@ def find_matching_fas_file(treefile, fas_dir):
 
 def exon_length(treefile, fas_dir):
     fas_file = find_matching_fas_file(treefile, fas_dir)
-    axon = ''
+    exon = ''
     with open(fas_file, 'r') as f:
         f.readline()
-        axon = f.readline().strip()
-    return len(axon)
+        exon = f.readline().strip()
+    return len(exon)
 
 best_rank = 0
 best_output = ''
