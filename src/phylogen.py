@@ -6,6 +6,7 @@ from glob import glob
 from tempfile import NamedTemporaryFile
 from multiprocessing import cpu_count
 import numpy as np
+import re
 
 size = 1
 rank = 0
@@ -64,12 +65,56 @@ def iqtree_trees(iqtree, fas_dir, output_dir, cores, cores_per_instance):
         p.wait()
     return tree_prefixes
 
-def astral_tree(astral, input_file, output_file):
+def astral_tree(astral, input_file):
     cmd = [which('java'), '-jar', astral, '-i', input_file]
-    if output_file:
-        cmd.extend(['-o', output_file])
-    p = Popen(cmd)
-    return p.wait() == 0
+    devnull = open(os.devnull, 'w')
+    p = Popen(cmd, stderr=devnull, stdout=PIPE)
+    return p
+
+def rank_treefile(data):
+    supports = [float(d) for d in re.findall(r'(\d+\.*\d*):\d+\.*\d*', data.decode())]
+    return sum(supports)/len(supports)
+
+def find_matching_fas_file(treefile, fas_dir):
+    base = os.path.splitext(os.path.basename(treefile))[0]
+    fas_files = []
+    g = '.fas'
+    globs = [g, g.title(), g.upper()]
+    for g in globs:
+        fas_files.extend(glob(os.path.join(fas_dir, '**', '*%s*%s' % (base, g)), recursive=True))
+    if len(fas_files) == 1:
+        return fas_files[0]
+    else:
+        print('FAS file not found in %s using glob %s' % (fas_dir, os.path.join(fas_dir, '**', '*%s*%s' % (base, '.fas'))))
+        exit(1)
+
+def exon_length(treefile, fas_dir):
+    fas_file = find_matching_fas_file(treefile, fas_dir)
+    exon = ''
+    with open(fas_file, 'r') as f:
+        f.readline()
+        exon = f.readline().strip()
+    return len(exon)
+
+best_rank = 0
+best_output = ''
+def validate(p, start, end):
+    global best_rank, best_output
+    if p.poll() is not None:
+        tree = p.communicate()[0].strip()
+        rank = rank_treefile(tree)
+        if rank > best_rank:
+            print('Found a better rank of %f in range %d - %d' % (rank, start, end))
+            print('Best tree found so far:\n%s' % tree)
+            best_rank = rank
+            best_output = [tree]
+        elif rank == best_rank:
+            print('Found the same rank of %f in range %d - %d' % (rank, start, end))
+            best_output.append(tree)
+        else:
+            print('Found a worse rank of %f in range %d - %d' % (rank, start, end))
+        return True
+    return False
 
 if __name__ == '__main__':
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -112,17 +157,29 @@ if __name__ == '__main__':
         exit(4)
 
     print('Processing trees on %d nodes with %s cores' % (size, args.cores))
-    tree_prefixes = iqtree_trees(iqtree, os.path.abspath(fas_dir), os.path.abspath(output_dir), args.cores, args.cores_per_instance)
+    tree_files = iqtree_trees(iqtree, os.path.abspath(fas_dir), os.path.abspath(output_dir), args.cores, args.cores_per_instance)
     # Only the main node will process the trees via astral
     if rank == 0:
-        with NamedTemporaryFile('w', dir=output_dir) as t:
-            for tree_prefix in tree_prefixes:
-                try:
-                    treefile = glob(os.path.join(tree_prefix, '*.treefile'))[-1]
-                except IndexError:
-                    print('Tree file missing for %s' % tree_prefix)
-                    continue
-                t.write(open(treefile, 'r').read())
+        tree_files.sort(key=lambda k : exon_length(k, args.fas_dir))
+        procs = int(args.cores)-1
+        ps = []
+        for i in range(int(args.start), len(tree_files)):
+            while len(ps) == procs:
+                for p, start, end, tmp_file in ps:
+                    if validate(p, start, end):
+                        os.remove(tmp_file)
+                        ps.remove((p, start, end, tmp_file))
+            with NamedTemporaryFile('w', dir=output_dir, delete=False) as t:
+                for treefile in tree_files[i:]:
+                    t.write(open(treefile, 'r').read())
 
-            astral_tree(astral, t.name, output_file)
+                print('Calling astral on trees indexed from %d to %d' % (i, len(tree_files)))
+                p = astral_tree(args.astral, t.name)
+                ps.append((p, i, len(tree_files), t.name))
+        while len(ps) > 0:
+            for p, start, end, tmp_file in ps:
+                if validate(p, start, end):
+                    os.remove(tmp_file)
+                    ps.remove((p, start, end, tmp_file))
+        print('Best rank was %f with output in %s' % (best_rank, str(best_output)))
 
