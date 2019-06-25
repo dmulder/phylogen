@@ -108,7 +108,7 @@ def exon_length(treefile, fas_dir):
     return len(exon)
 
 best_rank = 0
-best_output = ''
+best_output = []
 def validate(output_file):
     global best_rank, best_output
     rank = rank_treefile(output_file)
@@ -118,7 +118,7 @@ def validate(output_file):
         best_output = [output_file]
     elif rank == best_rank:
         print('Found the same rank of %f in %s' % (rank, output_file))
-        best_output.append(best_output)
+        best_output.append(output_file)
     else:
         print('Found a worse rank of %f in %s' % (rank, output_file))
 
@@ -140,7 +140,7 @@ if __name__ == '__main__':
     iqtree = args.iqtree
     astral = args.astral
     fas_dir = args.fasdir
-    output_file = args.output
+    final_output_file = args.output
     output_dir = args.outdir
 
     if not os.path.exists(iqtree):
@@ -194,7 +194,11 @@ if __name__ == '__main__':
         ps.map(astral_tree, zip([args.astral]*len(input_files), input_files, output_files))
         for output_file in output_files:
             validate(output_file)
-        print('Best rank was %f with output in %s' % (best_rank, str(best_output)))
+        if len(best_output) == 1:
+            os.rename(best_output[0], final_output_file)
+            print('Best rank was %f with output in %s' % (best_rank, final_output_file))
+        else:
+            print('Best rank was %f with output in %s' % (best_rank, str(best_output)))
         for cleanup_file in input_files + output_files:
             if cleanup_file in best_output:
                 continue
