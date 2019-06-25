@@ -9,6 +9,7 @@ import numpy as np
 import re
 import jpype
 import jpype.imports
+import iqtree
 
 size = 1
 rank = 0
@@ -20,12 +21,13 @@ try:
 except ImportError:
     pass
 
-def generate_tree(iqtree, fas_file, out_file_prefix, threads):
+def generate_tree(args):
+    fas_file, out_file_prefix, threads = args
     print('Processing %s has begun' % fas_file)
-    p = Popen([iqtree, '-quiet', '-s', fas_file, '-m', 'TEST', '-nt', 'AUTO', '-ntmax', '%d' % threads, '-pre', out_file_prefix, '-bb', '1000'])
-    return p
+    args = [sys.argv[0].encode(), b'-quiet', b'-s', fas_file.encode(), b'-m', b'TEST', b'-nt', b'AUTO', b'-ntmax', b'%d' % threads, b'-pre', out_file_prefix.encode(), b'-bb', b'1000']
+    iqtree.main_entry(len(args), args)
 
-def iqtree_trees(iqtree, fas_dir, output_dir, cores, cores_per_instance):
+def iqtree_trees(fas_dir, output_dir, cores, cores_per_instance):
     output_subdir = os.path.join(output_dir, os.path.basename(fas_dir))
     if not os.path.exists(output_subdir):
         os.mkdir(output_subdir)
@@ -50,21 +52,17 @@ def iqtree_trees(iqtree, fas_dir, output_dir, cores, cores_per_instance):
     procs = int(int(cores)/int(cores_per_instance))
     threads = int(cores_per_instance)
 
-    ps = []
+    arg_list = []
     while len(fas_files_chunk) > 0:
-        while len(ps) == procs:
-            for p in ps:
-                if p.poll() is not None:
-                    ps.remove(p)
         f = fas_files_chunk.pop()
         prefix = os.path.splitext(os.path.basename(f))[0]
         out_file_dir = os.path.join(output_subdir, prefix)
         if not os.path.exists(out_file_dir):
             os.mkdir(out_file_dir)
         out_file_prefix = os.path.join(out_file_dir, prefix)
-        ps.append(generate_tree(iqtree, f, out_file_prefix, threads))
-    for p in ps:
-        p.wait()
+        arg_list.append((f, out_file_prefix, threads))
+    ps = Pool(processes=min(procs, len(arg_list)))
+    ps.map(generate_tree, arg_list)
     tree_files = []
     for tree_prefix in tree_prefixes:
         g = '*.treefile'
@@ -130,7 +128,6 @@ if __name__ == '__main__':
     current_dir = os.path.dirname(os.path.abspath(__file__))
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('-s', help='Input directory of alignments in PHYLIP/FASTA/NEXUS/CLUSTAL/MSF format')
-    parser.add_argument('--iqtree', help='Path to iqtree executable', default=os.path.join(current_dir, 'iqtree'))
     parser.add_argument('--astral', help='Path to astral jar executable', default=os.path.join(current_dir, 'astral.jar'))
     parser.add_argument('--cores', help='The number of cores to utilize', default=cpu_count())
     parser.add_argument('--cores-per-instance', help='The number of cores to utilize per iqtree instance', default=1)
@@ -141,24 +138,17 @@ if __name__ == '__main__':
     parser.add_argument('fasdir', help='Directory containing files in fas format')
 
     args = parser.parse_args()
-    iqtree = args.iqtree
     astral = args.astral
     fas_dir = args.fasdir
     final_output_file = args.output
     output_dir = args.outdir
 
-    if not os.path.exists(iqtree):
-        iqtree = which('iqtree')
-    if not iqtree or not os.path.exists(iqtree):
-        print('Path to iqtree not found.\nEither add iqtree to your path, or specify it\'s location via the --iqtree parameter.')
-        exit(1)
     if not os.path.exists(astral):
         astral = which('astral.jar')
     if not astral or not os.path.exists(astral):
         print('Path to astral not found.\nEither add astral to your path, or specify it\'s location via the --astral parameter.')
         exit(2)
 
-    Popen(['%s -version | grep "version"' % iqtree], shell=True).wait()
     Popen(['%s -jar %s 2>&1 | grep "version"' % (which('java'), astral)], shell=True).wait()
 
     if not os.path.exists(fas_dir):
@@ -170,7 +160,7 @@ if __name__ == '__main__':
 
     if not args.skip_trees:
         print('Processing trees on %d nodes with %s cores' % (size, args.cores))
-        tree_files = iqtree_trees(iqtree, os.path.abspath(fas_dir), os.path.abspath(output_dir), args.cores, args.cores_per_instance)
+        tree_files = iqtree_trees(os.path.abspath(fas_dir), os.path.abspath(output_dir), args.cores, args.cores_per_instance)
     else:
         output_subdir = os.path.join(os.path.abspath(output_dir), os.path.basename(os.path.abspath(fas_dir)))
         tree_files = []
