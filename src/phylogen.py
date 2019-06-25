@@ -132,6 +132,7 @@ if __name__ == '__main__':
     parser.add_argument('--cores-per-instance', help='The number of cores to utilize per iqtree instance', default=1)
     parser.add_argument('--outdir', help='A path to store the iqtree outputs', default=current_dir)
     parser.add_argument('--output', help='a filename for storing the output species tree.', default=os.path.join(current_dir, 'astral.treefile'))
+    parser.add_argument('--skip-trees', help='Skip treefile generation, assume they are already created in the output directory', action='store_true')
     parser.add_argument('--start', help='Index to start from (if restarting job)', default=0)
     parser.add_argument('fasdir', help='Directory containing files in fas format')
 
@@ -163,8 +164,16 @@ if __name__ == '__main__':
         print('The specified fas dir "%s" is not a directory' % fas_dir)
         exit(4)
 
-    print('Processing trees on %d nodes with %s cores' % (size, args.cores))
-    tree_files = iqtree_trees(iqtree, os.path.abspath(fas_dir), os.path.abspath(output_dir), args.cores, args.cores_per_instance)
+    if not args.skip_trees:
+        print('Processing trees on %d nodes with %s cores' % (size, args.cores))
+        tree_files = iqtree_trees(iqtree, os.path.abspath(fas_dir), os.path.abspath(output_dir), args.cores, args.cores_per_instance)
+    else:
+        output_subdir = os.path.join(os.path.abspath(output_dir), os.path.basename(os.path.abspath(fas_dir)))
+        tree_files = []
+        g = '*.treefile'
+        globs = [g, g.title(), g.upper()]
+        for g in globs:
+            tree_files.extend(glob(os.path.join(output_subdir, '**', g)))
     # Only the main node will process the trees via astral
     if rank == 0:
         tree_files.sort(key=lambda k : exon_length(k, fas_dir))
