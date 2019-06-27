@@ -149,6 +149,7 @@ if __name__ == '__main__':
         print('Path to astral not found.\nEither add astral to your path, or specify it\'s location via the --astral parameter.')
         exit(2)
 
+    print(iqtree.copyright().strip())
     Popen(['%s -jar %s 2>&1 | grep "version"' % (which('java'), astral)], shell=True).wait()
 
     if not os.path.exists(fas_dir):

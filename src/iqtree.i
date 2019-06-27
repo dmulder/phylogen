@@ -1,6 +1,8 @@
 %module iqtree
 
+%include std_string.i
 %{
+using namespace std;
 #include "iqtree.h"
 %}
 

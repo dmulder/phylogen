@@ -177,7 +177,8 @@ libiqtree_la_SOURCES =	iqtree_wrap.cxx \
 			$(srcdir)/IQ-TREE/main/main.cpp \
 			$(srcdir)/IQ-TREE/main/phyloanalysis.cpp \
 			$(srcdir)/IQ-TREE/main/phylotesting.cpp \
-			$(srcdir)/IQ-TREE/obsolete/parsmultistate.cpp
+			$(srcdir)/IQ-TREE/obsolete/parsmultistate.cpp \
+			$(srcdir)/iqtree.cpp
 
 CLEANFILES = astral.jar
 clean-local:
