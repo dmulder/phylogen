@@ -76,6 +76,10 @@ def iqtree_trees(iqtree, fas_dir, output_dir, cores, cores_per_instance):
 def astral_tree(args):
     astral, input_file, output_file = args
     jpype.startJVM(jpype.getDefaultJVMPath(), '-Djava.class.path=%s' % astral)
+    from java.lang import System
+    from java.io import PrintStream, File
+    System.setOut(PrintStream(File('/dev/null')))
+    System.setErr(PrintStream(File('/dev/null')))
     jpype.imports.registerDomain('phylonet')
     from phylonet.coalescent import CommandLine
     CommandLine.main(['-i', input_file, '-o', output_file])
