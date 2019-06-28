@@ -119,6 +119,7 @@ if __name__ == '__main__':
     parser.add_argument('--output', help='a filename for storing the output species tree.', default=os.path.join(current_dir, 'astral.treefile'))
     parser.add_argument('--skip-trees', help='Skip treefile generation, assume they are already created in the output directory', action='store_true')
     parser.add_argument('--range', help='Exon length range (inclusive) for checking for the best tree (ex.--range=50,100). Default is 0,-1 (everything). Typically only removing short exons will improve the tree bootstrap, so a end point of -1 is recommended.', type=lambda x: [int(y) for y in x.split(',')], default=[0, -1])
+    parser.add_argument('--mean-range', help='Search for the best tree only below the mean of the exon lengths. The best tree will likely fall in this range, and reduces processing time. Can not be used in conjunction with --range.', action='store_true')
     parser.add_argument('fasdir', help='Directory containing files in fas format')
 
     args = parser.parse_args()
@@ -143,6 +144,10 @@ if __name__ == '__main__':
         print('The specified fas dir "%s" is not a directory' % fas_dir)
         exit(4)
 
+    if args.mean_range and args.range != [0, -1]:
+        print('Specifying --mean-range with --range is invalid.')
+        exit(5)
+
     if not args.skip_trees:
         print('Processing trees on %d nodes with %s cores' % (size, args.cores))
         tree_files = iqtree_trees(os.path.abspath(fas_dir), os.path.abspath(output_dir), args.cores)
@@ -155,6 +160,8 @@ if __name__ == '__main__':
             tree_files.extend(glob(os.path.join(output_subdir, '**', g)))
 
     tree_exon_lengths = {tree: exon_length(tree, fas_dir) for tree in tree_files}
+    if args.mean_range:
+        mean = np.mean(tree_exon_lengths.values())
     tree_files.sort(key=lambda k : tree_exon_lengths[k])
     input_files = []
     output_files = []
@@ -163,6 +170,10 @@ if __name__ == '__main__':
             if tree_exon_lengths[tree_files[i]] < args.range[0]:
                 continue
             elif tree_exon_lengths[tree_files[i]] > args.range[-1]:
+                break
+        elif args.mean_range:
+            # Above the mean, we typically will not improve the score
+            if tree_exon_lengths[tree_files[i]] >= mean:
                 break
         output_file = os.path.join(current_dir, 'tmp_%dto%d.treefile' % (i, len(tree_files)))
         try:
