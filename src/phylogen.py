@@ -119,6 +119,7 @@ if __name__ == '__main__':
     parser.add_argument('--output', help='a filename for storing the output species tree.', default=os.path.join(current_dir, 'astral.treefile'))
     parser.add_argument('--skip-trees', help='Skip treefile generation, assume they are already created in the output directory', action='store_true')
     parser.add_argument('--start', help='Index to start from (if restarting job)', default=0)
+    parser.add_argument('--mean-range', help='Search for the best tree only below the mean of the exon lengths. The best tree will likely fall in this range, and reduces processing time.', action='store_true')
     parser.add_argument('fasdir', help='Directory containing files in fas format')
 
     args = parser.parse_args()
@@ -154,10 +155,17 @@ if __name__ == '__main__':
         for g in globs:
             tree_files.extend(glob(os.path.join(output_subdir, '**', g)))
 
-    tree_files.sort(key=lambda k : exon_length(k, fas_dir))
+    tree_exon_lengths = {tree: exon_length(tree, fas_dir) for tree in tree_files}
+    if args.mean_range:
+        mean = np.mean(list(tree_exon_lengths.values()))
+    tree_files.sort(key=lambda k : tree_exon_lengths[k])
     input_files = []
     output_files = []
     for i in range(int(args.start), len(tree_files)):
+        if args.mean_range:
+            # Above the mean, we typically will not improve the score
+            if tree_exon_lengths[tree_files[i]] >= mean:
+                break
         output_file = os.path.join(current_dir, 'tmp_%dto%d.treefile' % (i, len(tree_files)))
         try:
             os.remove(output_file)
