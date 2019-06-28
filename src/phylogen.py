@@ -118,7 +118,7 @@ if __name__ == '__main__':
     parser.add_argument('--outdir', help='A path to store the iqtree outputs', default=current_dir)
     parser.add_argument('--output', help='a filename for storing the output species tree.', default=os.path.join(current_dir, 'astral.treefile'))
     parser.add_argument('--skip-trees', help='Skip treefile generation, assume they are already created in the output directory', action='store_true')
-    parser.add_argument('--start', help='Index to start from (if restarting job)', default=0)
+    parser.add_argument('--range', help='Exon length range (inclusive) for checking for the best tree (ex.--range=50,100). Default is 0,-1 (everything). Typically only removing short exons will improve the tree bootstrap, so a end point of -1 is recommended.', type=lambda x: [int(y) for y in x.split(',')], default=[0, -1])
     parser.add_argument('fasdir', help='Directory containing files in fas format')
 
     args = parser.parse_args()
@@ -154,10 +154,16 @@ if __name__ == '__main__':
         for g in globs:
             tree_files.extend(glob(os.path.join(output_subdir, '**', g)))
 
-    tree_files.sort(key=lambda k : exon_length(k, fas_dir))
+    tree_exon_lengths = {tree: exon_length(tree, fas_dir) for tree in tree_files}
+    tree_files.sort(key=lambda k : tree_exon_lengths[k])
     input_files = []
     output_files = []
     for i in range(int(args.start), len(tree_files)):
+        if args.range != [0, -1]:
+            if tree_exon_lengths[tree_files[i]] < args.range[0]:
+                continue
+            elif tree_exon_lengths[tree_files[i]] > args.range[-1]:
+                break
         output_file = os.path.join(current_dir, 'tmp_%dto%d.treefile' % (i, len(tree_files)))
         try:
             os.remove(output_file)
